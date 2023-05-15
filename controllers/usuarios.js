@@ -2,22 +2,55 @@ import { response, request } from 'express';
 import bcryptjs from 'bcryptjs';
 import { Usuario } from '../models/usuario.js';
 
+        /*ACLARACION SOBRE LAS FUNCIONES DE BUSQUEDA QUE SE USAN DSPS DE Usuario.funcionDeBusqueda() (ejemplo) */
+/*Siempre que se pone una funcion de busqueda despues de Usuario, esta lo que hace es fijarse en el modelo de usuario
+que se encuentra en models/usuario.js y si coincide con alguna de las propiedades del modelo, devuelve algo, es decir
+por ejemplo que si ponemos como criterio de busqueda que encuentre un usuario que no contenga la propiedad nombre,
+la funcion no va devolver nada ya que tal usuario no existe :)*/
 
-
-export const usuariosGet = (req = request, res = response) =>{
+export const usuariosGet = async(req = request, res = response) =>{
     
     //La query es la peticion a la base de datos.
     //de "req.query" podemos desestructurar (porque es un objeto) los argumentos que vienen en la url.
     //Por ej: http://localhost:8080/api/usuarios?q=cat&name=shoes&page=2&limit=10 todo los separado por "&" son argumentos
-    const {q, name = "no name", page= 1, limit} = req.query;
+    // const {q, name = "no name", page= 1, limit} = req.query;
 
-    res.json({
-        msg: "get API - controlador",   
-        q,
-        name,
-        page,
-        limit,  
-    });
+    // Desestructuramos "limite" y "desde" para decirle que cantidad de usuarios queremos que muestre.
+    const {limite = 5, desde = 0} = req.query
+
+    // Esto sería un criterio/filtro que le podemos poner a las func. de busqueda, en es caso lo guardamos en una vble.
+    // Con este criterio le decimos que solo devuelva los usuarios que tengan estado = true.
+    const query = { estado: true }
+
+/*
+    // Con find() devolvemos TODOS  los usuarios, ya que no se puso ningun filtro ni criterio de busqueda.
+    const usuarios = await Usuario.find( query )
+        .skip(Number(desde))//Con skip se indica desde donde
+        .limit(Number(limite))//Con limit hasta donde
+        // En ambos hacemos uso de Number() ya que lo que traemos del url como argumento viene como string, y las func
+        // skip y limit solo leen number por lo que se tranforman.
+
+    // Esta funcion cuenta los resultados que 
+    const total = await Usuario.countDocuments( query );
+*/
+
+    /*El inconveniente que se presenta con estas dos vbles "usuarios" y "total", es que ambas son func. asincronas
+    y las func. async son bloqueantes, es decir que hasta que no termine una no empieza la otra o sea que 
+    hasta que no termine de ejecutarse "usuarios" no se ejecutara "total" y esto puede hacer que se agrande el tiempo 
+    de respuesta. Para solucionar esto hacemos lo siguiente: */
+
+    const [total, usuarios] = await Promise.all([
+        Usuario.countDocuments( query ),
+        Usuario.find( query )
+        .skip(Number(desde))
+        .limit(Number(limite))
+    ])
+    
+    /*Lo que hacemos con await Promise.all() es juntar ambas funciones asincronas y hacer que trabajen en paralelo,
+    lo malo de esto es que si falla una fallan las 2, pero si todo sale bien, el tiempo de respuesta se resta hasta un
+    50%. Tambien usamos la desestructuracion de array y nombramos al primer objeto del array "total" y al 2do "usuarios"*/
+
+    res.json({total,usuarios});
 
 }
 
@@ -48,9 +81,7 @@ export const usuariosPut = async(req = request, res = response) =>{
     // para actualizar, la func. automaticamente sobreescribe los archivos en bd, es decir no hace falta el 'save()'.
     const usuario = await Usuario.findByIdAndUpdate( id, resto );
 
-    res.json({
-        usuario
-    });
+    res.json(usuario);
 
 }
 
@@ -71,16 +102,28 @@ export const usuariosPost = async(req, res = response) =>{
 
     await usuario.save();
 
-    res.json({
-        usuario
-    });
+    res.json(usuario);
 
 }
 
-export const usuariosDelete = (req, res = response) =>{
+export const usuariosDelete = async(req, res = response) =>{
+    /*Hay 2 formas de borrar un usuario de una BD, una es borrando literamente el usuario de la BD y con este
+    toda la informacion que alguna vez hubo esto no es recomendable ya que algun momento podemos necestiar algun
+    registro del usuario, de todas formas, asi es como se hace:*/
+
+    const { id } = req.params
+
+    // const borrarUsuario = await Usuario.findByIdAndDelete( id )
+
+    /*Pero lo vamos hacer como la segunda opcion, que sería asi:*/
+
+    const borrarUsuarioNo = await Usuario.findByIdAndUpdate( id, {estado: false} )
+    // De esta forma solo cambiamos el estado del usuario a "false", con esto hacemos que para el front no sea visible
+    // pero la el usuario con toda su informacion sigue en la BD.
 
     res.json({
-        msg: "delete API - controlador"
+        id, 
+        borrarUsuarioNo
     });
 
 }

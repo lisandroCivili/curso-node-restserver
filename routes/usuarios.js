@@ -17,7 +17,7 @@ export const router = Router();
 router.get('/', usuariosGet)
 
 router.put('/:id',[
-    check('id').isMongoId(),
+    check('id', 'No es un ID valido de MongoDB').isMongoId(),
     check('id').custom( existeUsuarioPorId ),
     validarCampos
 ], usuariosPut)
@@ -42,7 +42,11 @@ router.post('/',[
 
 ], usuariosPost)
 
-router.delete('/', usuariosDelete)
+router.delete('/:id',[
+    check('id', 'No es un ID valido de MongoDB').isMongoId(),
+    check('id').custom( existeUsuarioPorId ),
+    validarCampos
+], usuariosDelete)
 
 router.patch('/', usuariosPatch)
 
